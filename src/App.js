@@ -4,8 +4,8 @@ import './App.css';
 import { handleUserInput as processUserInput, handleSuggestionClick as processSuggestionClick, scrollToBottom as scrollChatToBottom, useScrollToBottom } from './userInputFunctions';
 
 // Update the API base URL to match the correct endpoint in Django
-// const API_BASE_URL = 'http://localhost:8000/api/chatbot-data/';
-const API_BASE_URL = 'https://chatbot-backend-inw1.onrender.com/api/chatbot-data/';
+const API_BASE_URL = 'http://localhost:8000/api/chatbot-data/';
+// const API_BASE_URL = 'https://chatbot-backend-inw1.onrender.com/api/chatbot-data/';
 
 function App() {
   const [username, setUsername] = useState('');
