@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'https://chatbot-backend-inw1.onrender.com/api';
+// const API_BASE_URL = 'http://localhost:8000/api';
+
 
 // User input function that processes user queries
 const handleUserInput = async (e, {
