@@ -1,0 +1,412 @@
+import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import './App.css';
+
+const API_BASE_URL = 'http://localhost:8000/api';
+
+function App() {
+  const [username, setUsername] = useState('');
+  const [isGreeted, setIsGreeted] = useState(false);
+  const [greeting, setGreeting] = useState('');
+  const [options, setOptions] = useState([]);
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [currentOrders, setCurrentOrders] = useState([]);
+  const [previousOrders, setPreviousOrders] = useState([]);
+  const [slotAvailability, setSlotAvailability] = useState({});
+  const [subscriptionStatus, setSubscriptionStatus] = useState({});
+  const [loadingData, setLoadingData] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [allOrderData, setAllOrderData] = useState(null);
+  
+  const chatEndRef = useRef(null);
+
+  const handleUsernameSubmit = async (event) => {
+    event.preventDefault();
+    if (!username.trim()) return;
+    
+    setLoading(true);
+    setError(null);
+    try {
+      // This still uses the ChatbotDataView since greeting is static
+      const response = await axios.post(`${API_BASE_URL}/chatbot-data/?type=greet-user`, { name: username });
+      setGreeting(response.data.greeting);
+      setOptions(response.data.options);
+      setIsGreeted(true);
+      
+      // Add greeting as first message
+      setMessages([
+        { type: 'bot', content: response.data.greeting }
+      ]);
+      
+      // Fetch all order data
+      fetchAllOrderData();
+    } catch (err) {
+      setError('Failed to connect to the server. Please try again.');
+      console.error('Error fetching greeting:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Fetch all order data at once - now using dynamic data API
+  const fetchAllOrderData = async () => {
+    try {
+      // Use the new dynamic-data endpoint for all data
+      const response = await axios.get(`${API_BASE_URL}/dynamic-data/?type=all-data`);
+      setAllOrderData(response.data);
+    } catch (err) {
+      console.error('Error fetching all order data:', err);
+    }
+  };
+
+  const handleOptionSelect = async (option) => {
+    setSelectedOption(option);
+    setLoadingData(true);
+    setError(null);
+    setIsSearching(false);
+    
+    // Add user message
+    const userMessage = { type: 'user', content: option.title };
+    setMessages(prevMessages => [...prevMessages, userMessage]);
+    
+    try {
+      // If we already have all order data, use it
+      if (allOrderData) {
+        switch (option.title) {
+          case "Current Order Status":
+            setCurrentOrders(allOrderData.current_orders);
+            // Add bot response
+            const botMessage = { 
+              type: 'bot', 
+              content: "Here are your current orders:", 
+              data: allOrderData.current_orders,
+              dataType: 'current-orders' 
+            };
+            setMessages(prevMessages => [...prevMessages, botMessage]);
+            break;
+            
+          case "Previous Order Details":
+            setPreviousOrders(allOrderData.previous_orders);
+            // Add bot response
+            const prevOrderMessage = { 
+              type: 'bot', 
+              content: "Here are your previous orders:", 
+              data: allOrderData.previous_orders,
+              dataType: 'previous-orders' 
+            };
+            setMessages(prevMessages => [...prevMessages, prevOrderMessage]);
+            break;
+            
+          case "Slot Availability":
+            setSlotAvailability(allOrderData.slots);
+            // Add bot response
+            const slotMessage = { 
+              type: 'bot', 
+              content: "Here's the current slot availability:", 
+              data: allOrderData.slots,
+              dataType: 'slots' 
+            };
+            setMessages(prevMessages => [...prevMessages, slotMessage]);
+            break;
+            
+          case "Check Subscription Status":
+            setSubscriptionStatus(allOrderData.subscription);
+            // Add bot response
+            const subMessage = { 
+              type: 'bot', 
+              content: "Here's your subscription status:", 
+              data: allOrderData.subscription,
+              dataType: 'subscription' 
+            };
+            setMessages(prevMessages => [...prevMessages, subMessage]);
+            break;
+            
+          case "Search":
+            setIsSearching(true);
+            // Add bot response
+            const searchMessage = { 
+              type: 'bot', 
+              content: "What would you like to search for?",
+              dataType: 'search-prompt' 
+            };
+            setMessages(prevMessages => [...prevMessages, searchMessage]);
+            break;
+            
+          case "Contact Us":
+            // For Contact Us, we still use the static data
+            // Get the contact info from the option's subOptions
+            // Add bot response
+            const contactMessage = { 
+              type: 'bot', 
+              content: "Here's how you can contact us:", 
+              data: option.subOptions,
+              dataType: 'contact' 
+            };
+            setMessages(prevMessages => [...prevMessages, contactMessage]);
+            break;
+            
+          default:
+            break;
+        }
+      } else {
+        // Fallback to individual API calls to dynamic-data endpoint
+        switch (option.title) {
+          case "Current Order Status":
+            const currentOrdersResponse = await axios.get(`${API_BASE_URL}/dynamic-data/?type=current-orders`);
+            setCurrentOrders(currentOrdersResponse.data);
+            // Add bot response
+            const botMessage = { 
+              type: 'bot', 
+              content: "Here are your current orders:", 
+              data: currentOrdersResponse.data,
+              dataType: 'current-orders' 
+            };
+            setMessages(prevMessages => [...prevMessages, botMessage]);
+            break;
+            
+          case "Previous Order Details":
+            const previousOrdersResponse = await axios.get(`${API_BASE_URL}/dynamic-data/?type=previous-orders`);
+            setPreviousOrders(previousOrdersResponse.data);
+            // Add bot response
+            const prevOrderMessage = { 
+              type: 'bot', 
+              content: "Here are your previous orders:", 
+              data: previousOrdersResponse.data,
+              dataType: 'previous-orders' 
+            };
+            setMessages(prevMessages => [...prevMessages, prevOrderMessage]);
+            break;
+            
+          case "Slot Availability":
+            const slotResponse = await axios.get(`${API_BASE_URL}/dynamic-data/?type=slot-availability`);
+            setSlotAvailability(slotResponse.data);
+            // Add bot response
+            const slotMessage = { 
+              type: 'bot', 
+              content: "Here's the current slot availability:", 
+              data: slotResponse.data,
+              dataType: 'slots' 
+            };
+            setMessages(prevMessages => [...prevMessages, slotMessage]);
+            break;
+            
+          case "Check Subscription Status":
+            const subscriptionResponse = await axios.get(`${API_BASE_URL}/dynamic-data/?type=subscription-status`);
+            setSubscriptionStatus(subscriptionResponse.data);
+            // Add bot response
+            const subMessage = { 
+              type: 'bot', 
+              content: "Here's your subscription status:", 
+              data: subscriptionResponse.data,
+              dataType: 'subscription' 
+            };
+            setMessages(prevMessages => [...prevMessages, subMessage]);
+            break;
+            
+          case "Search":
+            setIsSearching(true);
+            // Add bot response
+            const searchMessage = { 
+              type: 'bot', 
+              content: "What would you like to search for?",
+              dataType: 'search-prompt' 
+            };
+            setMessages(prevMessages => [...prevMessages, searchMessage]);
+            break;
+            
+          case "Contact Us":
+            // For Contact Us, we still use static data from the option
+            // Add bot response
+            const contactMessage = { 
+              type: 'bot', 
+              content: "Here's how you can contact us:", 
+              data: option.subOptions,
+              dataType: 'contact' 
+            };
+            setMessages(prevMessages => [...prevMessages, contactMessage]);
+            break;
+            
+          default:
+            break;
+        }
+      }
+    } catch (err) {
+      console.error(`Error fetching data for ${option.title}:`, err);
+      setError(`Failed to load ${option.title.toLowerCase()} data. Please try again.`);
+      
+      // Add error message
+      const errorMessage = { 
+        type: 'bot', 
+        content: `I'm sorry, I couldn't retrieve the ${option.title.toLowerCase()} information. Please try again.`,
+        dataType: 'error' 
+      };
+      setMessages(prevMessages => [...prevMessages, errorMessage]);
+    } finally {
+      setLoadingData(false);
+      // Scroll to bottom of chat
+      scrollToBottom();
+    }
+  };
+
+  // The rest of the component remains the same
+  const handleBackToOptions = () => {
+    setSelectedOption(null);
+    setIsSearching(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setSuggestions([]);
+  };
+
+  // Handle user input from the chat input
+  const handleUserInput = async (e) => {
+    e.preventDefault();
+    
+    if (!searchQuery.trim()) return;
+    
+    // Add user message
+    const userMessage = { type: 'user', content: searchQuery };
+    setMessages(prevMessages => [...prevMessages, userMessage]);
+    
+    // Clear the input
+    const userInput = searchQuery;
+    setSearchQuery('');
+    
+    setLoadingData(true);
+    
+    try {
+      // We still use chatbot-data for search since it needs to search across both dynamic and static data
+      const response = await axios.get(`${API_BASE_URL}/chatbot-data/?type=search&q=${encodeURIComponent(userInput)}`);
+      
+      // Handle direct matches versus regular search results
+      if (response.data.match_type === 'direct') {
+        // Direct match found - update selected option and data
+        const option = response.data.option;
+        const data = response.data.data;
+        const suggestions = response.data.suggestions || [];
+        
+        setSelectedOption(option);
+        setIsSearching(false);
+        setSuggestions(suggestions);
+        
+        // Set the appropriate state based on the option type
+        switch (option.id) {
+          case 1: // Current Order Status
+            setCurrentOrders(data);
+            // Add bot response
+            const orderMessage = { 
+              type: 'bot', 
+              content: `Here are your current orders:`, 
+              data: data,
+              dataType: 'current-orders',
+              suggestions: suggestions
+            };
+            setMessages(prevMessages => [...prevMessages, orderMessage]);
+            break;
+            
+          case 2: // Slot Availability
+            setSlotAvailability(data);
+            // Add bot response
+            const slotMessage = { 
+              type: 'bot', 
+              content: `Here's the slot availability information:`, 
+              data: data,
+              dataType: 'slots',
+              suggestions: suggestions
+            };
+            setMessages(prevMessages => [...prevMessages, slotMessage]);
+            break;
+            
+          case 3: // Previous Order Details
+            setPreviousOrders(data);
+            // Add bot response
+            const prevOrderMessage = { 
+              type: 'bot', 
+              content: `Here are your previous orders:`, 
+              data: data,
+              dataType: 'previous-orders',
+              suggestions: suggestions
+            };
+            setMessages(prevMessages => [...prevMessages, prevOrderMessage]);
+            break;
+            
+          case 4: // Subscription Status
+            setSubscriptionStatus(data);
+            // Add bot response
+            const subMessage = { 
+              type: 'bot', 
+              content: `Here's your subscription status:`, 
+              data: data,
+              dataType: 'subscription',
+              suggestions: suggestions
+            };
+            setMessages(prevMessages => [...prevMessages, subMessage]);
+            break;
+            
+          default:
+            break;
+        }
+      } else {
+        // Regular search results
+        setSearchResults(response.data.results);
+        setSuggestions(response.data.suggestions || []);
+        
+        // Add bot response with results
+        const searchResultMessage = { 
+          type: 'bot', 
+          content: response.data.results.length > 0 
+            ? `I found ${response.data.results.length} results for "${userInput}":` 
+            : `I couldn't find any results for "${userInput}". Here are some suggestions:`,
+          data: response.data.results,
+          dataType: 'search-results',
+          suggestions: response.data.suggestions || []
+        };
+        setMessages(prevMessages => [...prevMessages, searchResultMessage]);
+      }
+    } catch (err) {
+      console.error('Error searching:', err);
+      // Add error message
+      const errorMessage = { 
+        type: 'bot', 
+        content: `I'm sorry, I couldn't process your query. Please try again.`,
+        dataType: 'error' 
+      };
+      setMessages(prevMessages => [...prevMessages, errorMessage]);
+    } finally {
+      setLoadingData(false);
+      // Scroll to bottom of chat
+      scrollToBottom();
+    }
+  };
+
+  // Handle suggestion click
+  const handleSuggestionClick = (suggestion) => {
+    // Find the option that matches this suggestion
+    const option = options.find(opt => opt.id === suggestion.id);
+    if (option) {
+      handleOptionSelect(option);
+    }
+  };
+
+  // Scroll to bottom of chat
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  // Use useEffect to scroll when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // The rest of your component...
+  // (renderMessageContent, render logic, etc.)
+
+  // Rest of the code...
+}
